@@ -13,6 +13,7 @@
         <li><RouterLink to="/" @click="open = false">Home</RouterLink></li>
         <li><RouterLink to="/lessons" @click="open = false">Private Lessons</RouterLink></li>
         <li><RouterLink to="/clinics" @click="open = false">Clinics</RouterLink></li>
+        <li><RouterLink to="/bio" @click="open = false">Bio</RouterLink></li>
         <li v-if="auth.token">
           <RouterLink to="/admin" @click="open = false">Admin</RouterLink>
         </li>
@@ -134,7 +135,7 @@ function logout() {
   transition: background 0.2s;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   .menu-toggle { display: flex; }
   .nav-links {
     display: none;
