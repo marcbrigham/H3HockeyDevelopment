@@ -2,7 +2,11 @@
   <nav class="navbar" :class="{ scrolled }">
     <div class="nav-inner">
       <RouterLink to="/" class="logo">
-        <img src="../assets/logo.png" alt="H3 Hockey Development" class="logo-img" />
+        <img
+          src="../assets/logo.png"
+          alt="H3 Hockey Development"
+          class="logo-img"
+        />
       </RouterLink>
 
       <button class="menu-toggle" @click="open = !open" :aria-expanded="open">
@@ -11,8 +15,19 @@
 
       <ul class="nav-links" :class="{ active: open }">
         <li><RouterLink to="/" @click="open = false">Home</RouterLink></li>
-        <li><RouterLink to="/lessons" @click="open = false">Private Lessons</RouterLink></li>
-        <li><RouterLink to="/clinics" @click="open = false">Clinics</RouterLink></li>
+        <li>
+          <RouterLink to="/lessons" @click="open = false"
+            >Private Lessons</RouterLink
+          >
+        </li>
+        <li>
+          <RouterLink to="/clinics" @click="open = false">Clinics</RouterLink>
+        </li>
+        <li>
+          <RouterLink to="/player-family" @click="open = false"
+            >Consulting</RouterLink
+          >
+        </li>
         <li><RouterLink to="/bio" @click="open = false">Bio</RouterLink></li>
         <li v-if="auth.token">
           <RouterLink to="/admin" @click="open = false">Admin</RouterLink>
@@ -21,7 +36,12 @@
           <button class="btn btn-ghost btn-sm" @click="logout">Logout</button>
         </li>
         <li v-else>
-          <RouterLink to="/lessons" class="btn btn-primary btn-sm" @click="open = false">Sign Up</RouterLink>
+          <RouterLink
+            to="/lessons"
+            class="btn btn-primary btn-sm"
+            @click="open = false"
+            >Sign Up</RouterLink
+          >
         </li>
       </ul>
     </div>
@@ -29,26 +49,26 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
+import { ref, onMounted, onBeforeUnmount } from "vue";
+import { RouterLink, useRouter } from "vue-router";
+import { useAuthStore } from "../stores/auth";
 
-const auth = useAuthStore()
-const router = useRouter()
-const open = ref(false)
-const scrolled = ref(false)
+const auth = useAuthStore();
+const router = useRouter();
+const open = ref(false);
+const scrolled = ref(false);
 
 function onScroll() {
-  scrolled.value = window.scrollY > 60
+  scrolled.value = window.scrollY > 60;
 }
 
-onMounted(() => window.addEventListener('scroll', onScroll, { passive: true }))
-onBeforeUnmount(() => window.removeEventListener('scroll', onScroll))
+onMounted(() => window.addEventListener("scroll", onScroll, { passive: true }));
+onBeforeUnmount(() => window.removeEventListener("scroll", onScroll));
 
 function logout() {
-  auth.logout()
-  router.push('/')
-  open.value = false
+  auth.logout();
+  router.push("/");
+  open.value = false;
 }
 </script>
 
@@ -61,11 +81,14 @@ function logout() {
   z-index: 100;
   background: transparent;
   border-bottom: 1px solid transparent;
-  transition: background 0.35s ease, border-color 0.35s ease, backdrop-filter 0.35s ease;
+  transition:
+    background 0.35s ease,
+    border-color 0.35s ease,
+    backdrop-filter 0.35s ease;
 }
 .navbar.scrolled {
   background: rgba(19, 26, 43, 0.92);
-  border-bottom-color: rgba(156,255,0,0.18);
+  border-bottom-color: rgba(156, 255, 0, 0.18);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
 }
@@ -92,7 +115,9 @@ function logout() {
   display: block;
   transition: opacity 0.2s;
 }
-.logo-img:hover { opacity: 0.9; }
+.logo-img:hover {
+  opacity: 0.9;
+}
 
 .nav-links {
   display: flex;
@@ -103,10 +128,16 @@ function logout() {
 .nav-links a.btn,
 .nav-links a.btn.router-link-active,
 .nav-links a.btn:hover,
-.nav-links a.btn.router-link-active:hover { color: #000; }
+.nav-links a.btn.router-link-active:hover {
+  color: #000;
+}
 .nav-links a {
-  color: rgba(255,255,255,0.8);
-  font-family: 'Tomorrow', system-ui, -apple-system, sans-serif;
+  color: rgba(255, 255, 255, 0.8);
+  font-family:
+    "Tomorrow",
+    system-ui,
+    -apple-system,
+    sans-serif;
   font-size: 1rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -115,7 +146,9 @@ function logout() {
   transition: color 0.2s;
 }
 .nav-links a:hover,
-.nav-links a.router-link-active { color: var(--lime); }
+.nav-links a.router-link-active {
+  color: var(--lime);
+}
 
 .menu-toggle {
   display: none;
@@ -136,7 +169,9 @@ function logout() {
 }
 
 @media (max-width: 900px) {
-  .menu-toggle { display: flex; }
+  .menu-toggle {
+    display: flex;
+  }
   .nav-links {
     display: none;
     position: fixed;
@@ -148,9 +183,11 @@ function logout() {
     flex-direction: column;
     align-items: flex-start;
     padding: 1rem 1.5rem 1.5rem;
-    border-bottom: 1px solid rgba(156,255,0,0.15);
+    border-bottom: 1px solid rgba(156, 255, 0, 0.15);
     gap: 1rem;
   }
-  .nav-links.active { display: flex; }
+  .nav-links.active {
+    display: flex;
+  }
 }
 </style>

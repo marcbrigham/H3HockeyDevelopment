@@ -6,34 +6,41 @@
     <div class="container">
       <div class="footer-inner">
         <RouterLink to="/" class="footer-brand">
-          <img src="./assets/logo.png" alt="H3 Hockey Development" class="footer-logo" />
+          <img
+            src="./assets/logo.png"
+            alt="H3 Hockey Development"
+            class="footer-logo"
+          />
         </RouterLink>
         <div class="footer-links">
           <RouterLink to="/">Home</RouterLink>
           <RouterLink to="/lessons">Private Lessons</RouterLink>
           <RouterLink to="/clinics">Clinics</RouterLink>
-          <a href="mailto:h3hockeydevelopment@gmail.com">Contact</a>
+          <RouterLink to="/player-family">Consulting</RouterLink>
+          <RouterLink to="/bio">Bio</RouterLink>
         </div>
       </div>
       <div class="footer-bottom">
-        <p>© {{ new Date().getFullYear() }} H3 Hockey Development. Est. 2010.</p>
+        <p>
+          © {{ new Date().getFullYear() }} H3 Hockey Development. Est. 2010.
+        </p>
       </div>
     </div>
   </footer>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import { RouterView, RouterLink } from 'vue-router'
-import Navbar from './components/Navbar.vue'
-import { useAuthStore } from './stores/auth'
-import { useParticles } from './composables/useParticles'
+import { ref } from "vue";
+import { RouterView, RouterLink } from "vue-router";
+import Navbar from "./components/Navbar.vue";
+import { useAuthStore } from "./stores/auth";
+import { useParticles } from "./composables/useParticles";
 
-const auth = useAuthStore()
-auth.init()
+const auth = useAuthStore();
+auth.init();
 
-const canvas = ref(null)
-useParticles(canvas)
+const canvas = ref(null);
+useParticles(canvas);
 </script>
 
 <style scoped>
@@ -50,7 +57,7 @@ useParticles(canvas)
   position: relative;
   z-index: 1;
   background: rgba(19, 26, 43, 0.97);
-  border-top: 1px solid rgba(156,255,0,0.15);
+  border-top: 1px solid rgba(156, 255, 0, 0.15);
   padding: 2.5rem 0 1.5rem;
 }
 .footer-inner {
@@ -61,7 +68,11 @@ useParticles(canvas)
   gap: 1.5rem;
   margin-bottom: 1.5rem;
 }
-.footer-brand { display: flex; align-items: center; text-decoration: none; }
+.footer-brand {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+}
 .footer-logo {
   height: 48px;
   width: auto;
@@ -70,9 +81,24 @@ useParticles(canvas)
   padding: 4px 8px;
   display: block;
 }
-.footer-links { display: flex; gap: 1.5rem; flex-wrap: wrap; }
-.footer-links a { color: var(--gray-500); font-size: 0.875rem; }
-.footer-links a:hover { color: var(--lime); }
-.footer-bottom { border-top: 1px solid rgba(255,255,255,0.06); padding-top: 1rem; }
-.footer-bottom p { color: var(--gray-500); font-size: 0.8rem; }
+.footer-links {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+.footer-links a {
+  color: var(--gray-500);
+  font-size: 0.875rem;
+}
+.footer-links a:hover {
+  color: var(--lime);
+}
+.footer-bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 1rem;
+}
+.footer-bottom p {
+  color: var(--gray-500);
+  font-size: 0.8rem;
+}
 </style>

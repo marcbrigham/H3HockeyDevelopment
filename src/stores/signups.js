@@ -1,87 +1,118 @@
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import axios from 'axios'
+import { defineStore } from "pinia";
+import { ref } from "vue";
+import axios from "axios";
 
-export const useSignupsStore = defineStore('signups', () => {
-  const lessonSignups = ref([])
-  const clinicSignups = ref([])
-  const clinics = ref([])
-  const loading = ref(false)
+export const useSignupsStore = defineStore("signups", () => {
+  const lessonSignups = ref([]);
+  const clinicSignups = ref([]);
+  const clinics = ref([]);
+  const mailingSubscribers = ref([]);
+  const loading = ref(false);
 
   async function fetchClinics() {
-    const res = await axios.get('/api/clinics')
-    clinics.value = res.data
+    const res = await axios.get("/api/clinics");
+    clinics.value = res.data;
   }
 
   async function submitLessonSignup(data) {
-    const res = await axios.post('/api/signups/lessons', data)
-    return res.data
+    const res = await axios.post("/api/signups/lessons", data);
+    return res.data;
   }
 
   async function submitClinicSignup(data) {
-    const res = await axios.post('/api/signups/clinics', data)
-    return res.data
+    const res = await axios.post("/api/signups/clinics", data);
+    return res.data;
+  }
+
+  async function submitMailingSubscriber(data) {
+    const res = await axios.post("/api/mailing-list", data);
+    return res.data;
+  }
+
+  async function fetchMailingSubscribers() {
+    const res = await axios.get("/api/mailing-list");
+    mailingSubscribers.value = res.data;
+  }
+
+  async function deleteMailingSubscriber(id) {
+    await axios.delete(`/api/mailing-list/${id}`);
+    mailingSubscribers.value = mailingSubscribers.value.filter(
+      (s) => s.id !== id,
+    );
   }
 
   async function fetchLessonSignups() {
-    loading.value = true
+    loading.value = true;
     try {
-      const res = await axios.get('/api/signups/lessons')
-      lessonSignups.value = res.data
+      const res = await axios.get("/api/signups/lessons");
+      lessonSignups.value = res.data;
     } finally {
-      loading.value = false
+      loading.value = false;
     }
   }
 
   async function fetchClinicSignups() {
-    loading.value = true
+    loading.value = true;
     try {
-      const res = await axios.get('/api/signups/clinics')
-      clinicSignups.value = res.data
+      const res = await axios.get("/api/signups/clinics");
+      clinicSignups.value = res.data;
     } finally {
-      loading.value = false
+      loading.value = false;
     }
   }
 
   async function updateLessonStatus(id, status) {
-    await axios.patch(`/api/signups/lessons/${id}/status`, { status })
-    const item = lessonSignups.value.find(s => s.id === id)
-    if (item) item.status = status
+    await axios.patch(`/api/signups/lessons/${id}/status`, { status });
+    const item = lessonSignups.value.find((s) => s.id === id);
+    if (item) item.status = status;
   }
 
   async function updateClinicStatus(id, status) {
-    await axios.patch(`/api/signups/clinics/${id}/status`, { status })
-    const item = clinicSignups.value.find(s => s.id === id)
-    if (item) item.status = status
+    await axios.patch(`/api/signups/clinics/${id}/status`, { status });
+    const item = clinicSignups.value.find((s) => s.id === id);
+    if (item) item.status = status;
   }
 
   async function deleteLessonSignup(id) {
-    await axios.delete(`/api/signups/lessons/${id}`)
-    lessonSignups.value = lessonSignups.value.filter(s => s.id !== id)
+    await axios.delete(`/api/signups/lessons/${id}`);
+    lessonSignups.value = lessonSignups.value.filter((s) => s.id !== id);
   }
 
   async function deleteClinicSignup(id) {
-    await axios.delete(`/api/signups/clinics/${id}`)
-    clinicSignups.value = clinicSignups.value.filter(s => s.id !== id)
+    await axios.delete(`/api/signups/clinics/${id}`);
+    clinicSignups.value = clinicSignups.value.filter((s) => s.id !== id);
   }
 
   async function createClinic(data) {
-    const res = await axios.post('/api/clinics', data)
-    clinics.value.push(res.data)
-    return res.data
+    const res = await axios.post("/api/clinics", data);
+    clinics.value.push(res.data);
+    return res.data;
   }
 
   async function deleteClinic(id) {
-    await axios.delete(`/api/clinics/${id}`)
-    clinics.value = clinics.value.filter(c => c.id !== id)
+    await axios.delete(`/api/clinics/${id}`);
+    clinics.value = clinics.value.filter((c) => c.id !== id);
   }
 
   return {
-    lessonSignups, clinicSignups, clinics, loading,
-    fetchClinics, submitLessonSignup, submitClinicSignup,
-    fetchLessonSignups, fetchClinicSignups,
-    updateLessonStatus, updateClinicStatus,
-    deleteLessonSignup, deleteClinicSignup,
-    createClinic, deleteClinic
-  }
-})
+    lessonSignups,
+    clinicSignups,
+    clinics,
+    mailingSubscribers,
+    loading,
+    fetchClinics,
+    submitLessonSignup,
+    submitClinicSignup,
+    submitMailingSubscriber,
+    fetchMailingSubscribers,
+    deleteMailingSubscriber,
+    fetchLessonSignups,
+    fetchClinicSignups,
+    updateLessonStatus,
+    updateClinicStatus,
+    deleteLessonSignup,
+    deleteClinicSignup,
+    createClinic,
+    deleteClinic,
+  };
+});
