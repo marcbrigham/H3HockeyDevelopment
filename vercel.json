@@ -11,6 +11,12 @@
     }
   ],
   "rewrites": [
-    { "source": "/((?!api(?:/|$)).*)", "destination": "/index.html" }
+    { "source": "/login", "destination": "/index.html" },
+    { "source": "/admin", "destination": "/index.html" },
+    { "source": "/lessons", "destination": "/index.html" },
+    { "source": "/clinics", "destination": "/index.html" },
+    { "source": "/bio", "destination": "/index.html" },
+    { "source": "/player-family", "destination": "/index.html" },
+    { "source": "/mailing-list", "destination": "/index.html" }
   ]
 }
