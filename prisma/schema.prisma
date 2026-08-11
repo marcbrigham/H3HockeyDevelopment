@@ -13,6 +13,14 @@ model Admin {
   createdAt DateTime @default(now())
 }
 
+model PasswordResetToken {
+  id        Int      @id @default(autoincrement())
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+}
+
 model MailingSubscriber {
   id                  Int      @id @default(autoincrement())
   playerName          String

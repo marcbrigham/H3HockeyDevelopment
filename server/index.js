@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import crypto from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
@@ -23,6 +24,11 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || "h3hockey-secret";
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_USER;
+const ADMIN_EMAIL = (
+  process.env.ADMIN_EMAIL ||
+  process.env.SMTP_USER ||
+  "h3hockeydevelopment@gmail.com"
+).toLowerCase();
 const mailer =
   process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD
     ? nodemailer.createTransport({
@@ -68,8 +74,28 @@ async function sendClinicConfirmation({
   return true;
 }
 
+async function sendPasswordResetEmail(email, resetUrl) {
+  if (!mailer || !EMAIL_FROM) return false;
+  await mailer.sendMail({
+    from: EMAIL_FROM,
+    to: email,
+    subject: "Reset your H3 Hockey Development admin password",
+    text: `Use this link to reset your admin password:\n\n${resetUrl}\n\nThis link expires in 30 minutes. If you did not request this, you can ignore this email.`,
+  });
+  return true;
+}
+
 app.use(cors({ origin: "http://localhost:5173" }));
 app.use(express.json());
+
+// Vercel can invoke a catch-all function with the /api prefix removed.
+// Normalize that form so the same Express routes work locally and in production.
+app.use((req, _res, next) => {
+  if (process.env.VERCEL === "1" && !req.url.startsWith("/api")) {
+    req.url = `/api${req.url}`;
+  }
+  next();
+});
 
 // ── Mailing list ────────────────────────────────────────────────────────────
 app.post("/api/mailing-list", async (req, res) => {
@@ -163,6 +189,76 @@ app.post("/api/admin/login", async (req, res) => {
     { expiresIn: "24h" },
   );
   res.json({ token });
+});
+
+app.post("/api/admin/request-password-reset", async (req, res) => {
+  const email = String(req.body.email || "")
+    .trim()
+    .toLowerCase();
+  if (!email || email !== ADMIN_EMAIL) {
+    return res.json({
+      message: "If that email is registered, a reset link has been sent.",
+    });
+  }
+
+  const rawToken = crypto.randomBytes(32).toString("hex");
+  const tokenHash = crypto.createHash("sha256").update(rawToken).digest("hex");
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  const { error } = await supabase
+    .from("PasswordResetToken")
+    .insert({ tokenHash, expiresAt });
+  if (error)
+    return res.status(500).json({ error: "Unable to create reset link" });
+
+  const baseUrl = process.env.APP_URL || `${req.protocol}://${req.get("host")}`;
+  const resetUrl = `${baseUrl}/login?resetToken=${rawToken}`;
+  try {
+    await sendPasswordResetEmail(email, resetUrl);
+  } catch (error) {
+    console.error("Password reset email failed:", error.message);
+  }
+  res.json({
+    message: "If that email is registered, a reset link has been sent.",
+  });
+});
+
+app.post("/api/admin/reset-password", async (req, res) => {
+  const { token, password } = req.body;
+  if (!token || typeof password !== "string" || password.length < 8) {
+    return res
+      .status(400)
+      .json({
+        error:
+          "A valid token and password of at least 8 characters are required",
+      });
+  }
+  const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+  const { data: resetToken } = await supabase
+    .from("PasswordResetToken")
+    .select("id,expiresAt,usedAt")
+    .eq("tokenHash", tokenHash)
+    .maybeSingle();
+  if (
+    !resetToken ||
+    resetToken.usedAt ||
+    new Date(resetToken.expiresAt) < new Date()
+  ) {
+    return res
+      .status(400)
+      .json({ error: "This reset link is invalid or expired" });
+  }
+  const passwordHash = await bcrypt.hash(password, 10);
+  const { error: adminError } = await supabase
+    .from("Admin")
+    .update({ password: passwordHash })
+    .eq("username", "admin");
+  if (adminError)
+    return res.status(500).json({ error: "Unable to reset password" });
+  await supabase
+    .from("PasswordResetToken")
+    .update({ usedAt: new Date().toISOString() })
+    .eq("id", resetToken.id);
+  res.json({ message: "Password reset successfully" });
 });
 
 // ── Lesson signups ───────────────────────────────────────────────────────────

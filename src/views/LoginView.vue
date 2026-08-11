@@ -11,8 +11,9 @@
       </div>
 
       <div v-if="error" class="alert alert-error">{{ error }}</div>
+      <div v-if="message" class="alert alert-success">{{ message }}</div>
 
-      <form @submit.prevent="submit">
+      <form v-if="mode === 'login'" @submit.prevent="submit">
         <div class="form-group">
           <label>Username</label>
           <input v-model="username" required autocomplete="username" />
@@ -55,6 +56,64 @@
         </button>
       </form>
 
+      <form v-else-if="mode === 'request'" @submit.prevent="requestReset">
+        <div class="form-group">
+          <label>Admin Email</label>
+          <input
+            v-model="resetEmail"
+            type="email"
+            required
+            autocomplete="email"
+            placeholder="admin@example.com"
+          />
+        </div>
+        <button
+          type="submit"
+          class="btn btn-primary"
+          :disabled="loading"
+          style="width: 100%; justify-content: center; margin-top: 0.5rem"
+        >
+          {{ loading ? "Sending…" : "Send Reset Link" }}
+        </button>
+        <button type="button" class="text-button" @click="mode = 'login'">
+          Back to login
+        </button>
+      </form>
+
+      <form v-else @submit.prevent="resetPassword">
+        <div class="form-group">
+          <label>New Password</label>
+          <input
+            v-model="newPassword"
+            type="password"
+            required
+            minlength="8"
+            autocomplete="new-password"
+          />
+        </div>
+        <button
+          type="submit"
+          class="btn btn-primary"
+          :disabled="loading"
+          style="width: 100%; justify-content: center; margin-top: 0.5rem"
+        >
+          {{ loading ? "Resetting…" : "Reset Password" }}
+        </button>
+      </form>
+
+      <button
+        v-if="mode === 'login'"
+        type="button"
+        class="text-button forgot-link"
+        @click="
+          mode = 'request';
+          error = '';
+          message = '';
+        "
+      >
+        Forgot password?
+      </button>
+
       <RouterLink to="/" class="back-link">← Back to site</RouterLink>
     </div>
   </main>
@@ -62,16 +121,22 @@
 
 <script setup>
 import { ref } from "vue";
-import { RouterLink, useRouter } from "vue-router";
+import { RouterLink, useRoute, useRouter } from "vue-router";
+import axios from "axios";
 import { useAuthStore } from "../stores/auth";
 
 const auth = useAuthStore();
 const router = useRouter();
+const route = useRoute();
 const username = ref("");
 const password = ref("");
 const showPassword = ref(false);
 const loading = ref(false);
 const error = ref("");
+const message = ref("");
+const mode = ref(route.query.resetToken ? "reset" : "login");
+const resetEmail = ref("");
+const newPassword = ref("");
 
 async function submit() {
   loading.value = true;
@@ -81,6 +146,41 @@ async function submit() {
     router.push("/admin");
   } catch {
     error.value = "Invalid username or password.";
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function requestReset() {
+  loading.value = true;
+  error.value = "";
+  message.value = "";
+  try {
+    const response = await axios.post("/api/admin/request-password-reset", {
+      email: resetEmail.value,
+    });
+    message.value = response.data.message;
+  } catch (err) {
+    error.value = err.response?.data?.error || "Unable to send reset link.";
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function resetPassword() {
+  loading.value = true;
+  error.value = "";
+  message.value = "";
+  try {
+    const response = await axios.post("/api/admin/reset-password", {
+      token: route.query.resetToken,
+      password: newPassword.value,
+    });
+    mode.value = "login";
+    message.value = response.data.message;
+    router.replace("/login");
+  } catch (err) {
+    error.value = err.response?.data?.error || "Unable to reset password.";
   } finally {
     loading.value = false;
   }
@@ -175,5 +275,21 @@ async function submit() {
   stroke-linecap: round;
   stroke-linejoin: round;
   stroke-width: 1.8;
+}
+.text-button {
+  display: block;
+  margin: 1rem auto 0;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--gray-500);
+  cursor: pointer;
+  font: inherit;
+}
+.text-button:hover {
+  color: var(--lime);
+}
+.forgot-link {
+  margin-top: 1rem;
 }
 </style>
