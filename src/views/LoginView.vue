@@ -144,8 +144,8 @@ async function submit() {
   try {
     await auth.login(username.value, password.value);
     router.push("/admin");
-  } catch {
-    error.value = "Invalid username or password.";
+  } catch (err) {
+    error.value = err.response?.data?.error || "Invalid username or password.";
   } finally {
     loading.value = false;
   }

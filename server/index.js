@@ -29,6 +29,8 @@ const ADMIN_EMAIL = (
   process.env.SMTP_USER ||
   "h3hockeydevelopment@gmail.com"
 ).toLowerCase();
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || "admin";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "h3hockey2024";
 const mailer =
   process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASSWORD
     ? nodemailer.createTransport({
@@ -175,20 +177,31 @@ function requireAdmin(req, res, next) {
 // ── Admin auth ───────────────────────────────────────────────────────────────
 app.post("/api/admin/login", async (req, res) => {
   const { username, password } = req.body;
-  const { data: admin } = await supabase
-    .from("Admin")
-    .select("*")
-    .eq("username", username)
-    .maybeSingle();
-  if (!admin || !(await bcrypt.compare(password, admin.password))) {
-    return res.status(401).json({ error: "Invalid credentials" });
+  try {
+    // Vercel does not run the local app.listen callback, so provision the
+    // first admin lazily when the serverless function receives a login.
+    await ensureAdmin();
+    const { data: admin, error } = await supabase
+      .from("Admin")
+      .select("*")
+      .eq("username", username)
+      .maybeSingle();
+    if (error) throw error;
+    if (!admin || !(await bcrypt.compare(password, admin.password))) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+    const token = jwt.sign(
+      { id: admin.id, username: admin.username },
+      JWT_SECRET,
+      { expiresIn: "24h" },
+    );
+    res.json({ token });
+  } catch (error) {
+    console.error("Admin login failed:", error.message);
+    res
+      .status(500)
+      .json({ error: "The login service is temporarily unavailable" });
   }
-  const token = jwt.sign(
-    { id: admin.id, username: admin.username },
-    JWT_SECRET,
-    { expiresIn: "24h" },
-  );
-  res.json({ token });
 });
 
 app.post("/api/admin/request-password-reset", async (req, res) => {
@@ -225,12 +238,9 @@ app.post("/api/admin/request-password-reset", async (req, res) => {
 app.post("/api/admin/reset-password", async (req, res) => {
   const { token, password } = req.body;
   if (!token || typeof password !== "string" || password.length < 8) {
-    return res
-      .status(400)
-      .json({
-        error:
-          "A valid token and password of at least 8 characters are required",
-      });
+    return res.status(400).json({
+      error: "A valid token and password of at least 8 characters are required",
+    });
   }
   const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
   const { data: resetToken } = await supabase
@@ -507,25 +517,26 @@ app.delete("/api/signups/clinics/:id", requireAdmin, async (req, res) => {
 });
 
 // ── Seed admin on startup ────────────────────────────────────────────────────
-async function seedAdmin() {
-  const { data: existing } = await supabase
+async function ensureAdmin() {
+  const { data: existing, error: lookupError } = await supabase
     .from("Admin")
     .select("id")
     .limit(1)
     .maybeSingle();
+  if (lookupError) throw lookupError;
   if (!existing) {
-    const hash = await bcrypt.hash("h3hockey2024", 10);
+    const hash = await bcrypt.hash(ADMIN_PASSWORD, 10);
     const { error } = await supabase
       .from("Admin")
-      .insert({ username: "admin", password: hash });
+      .insert({ username: ADMIN_USERNAME, password: hash });
     if (error) throw error;
-    console.log("Admin seeded — username: admin, password: h3hockey2024");
+    console.log(`Admin seeded — username: ${ADMIN_USERNAME}`);
   }
 }
 
 if (process.env.VERCEL !== "1") {
   app.listen(PORT, async () => {
-    await seedAdmin();
+    await ensureAdmin();
     console.log(`H3 Hockey API running on http://localhost:${PORT}`);
   });
 }
