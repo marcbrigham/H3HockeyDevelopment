@@ -1,14 +1,27 @@
--- CreateTable
+-- PostgreSQL baseline migration for Supabase.
+CREATE SCHEMA IF NOT EXISTS "public";
+
 CREATE TABLE "Admin" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "id" SERIAL NOT NULL,
     "username" TEXT NOT NULL,
     "password" TEXT NOT NULL,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Admin_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
+CREATE TABLE "MailingSubscriber" (
+    "id" SERIAL NOT NULL,
+    "playerName" TEXT NOT NULL,
+    "playerPosition" TEXT NOT NULL,
+    "playerBirthYear" INTEGER NOT NULL,
+    "mostRecentTeam" TEXT NOT NULL,
+    "parentGuardianEmail" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "MailingSubscriber_pkey" PRIMARY KEY ("id")
+);
+
 CREATE TABLE "Player" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "id" SERIAL NOT NULL,
     "playerName" TEXT NOT NULL,
     "age" INTEGER NOT NULL,
     "position" TEXT NOT NULL,
@@ -16,47 +29,45 @@ CREATE TABLE "Player" (
     "email" TEXT NOT NULL,
     "phone" TEXT NOT NULL,
     "notes" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Player_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
 CREATE TABLE "LessonSignup" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "id" SERIAL NOT NULL,
     "playerId" INTEGER NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'pending',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "LessonSignup_playerId_fkey" FOREIGN KEY ("playerId") REFERENCES "Player" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "LessonSignup_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
 CREATE TABLE "Clinic" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "id" SERIAL NOT NULL,
     "name" TEXT NOT NULL,
-    "date" DATETIME NOT NULL,
+    "date" TIMESTAMP(3) NOT NULL,
     "time" TEXT NOT NULL,
     "location" TEXT NOT NULL,
     "ageGroup" TEXT NOT NULL,
     "maxPlayers" INTEGER NOT NULL DEFAULT 20,
     "description" TEXT,
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Clinic_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
 CREATE TABLE "ClinicSignup" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+    "id" SERIAL NOT NULL,
     "playerId" INTEGER NOT NULL,
     "clinicId" INTEGER NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'pending',
-    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "ClinicSignup_playerId_fkey" FOREIGN KEY ("playerId") REFERENCES "Player" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
-    CONSTRAINT "ClinicSignup_clinicId_fkey" FOREIGN KEY ("clinicId") REFERENCES "Clinic" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "ClinicSignup_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
 CREATE UNIQUE INDEX "Admin_username_key" ON "Admin"("username");
-
--- CreateIndex
+CREATE UNIQUE INDEX "MailingSubscriber_parentGuardianEmail_key" ON "MailingSubscriber"("parentGuardianEmail");
 CREATE UNIQUE INDEX "LessonSignup_playerId_key" ON "LessonSignup"("playerId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "ClinicSignup_playerId_clinicId_key" ON "ClinicSignup"("playerId", "clinicId");
+
+ALTER TABLE "LessonSignup" ADD CONSTRAINT "LessonSignup_playerId_fkey" FOREIGN KEY ("playerId") REFERENCES "Player"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ClinicSignup" ADD CONSTRAINT "ClinicSignup_playerId_fkey" FOREIGN KEY ("playerId") REFERENCES "Player"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ClinicSignup" ADD CONSTRAINT "ClinicSignup_clinicId_fkey" FOREIGN KEY ("clinicId") REFERENCES "Clinic"("id") ON DELETE CASCADE ON UPDATE CASCADE;

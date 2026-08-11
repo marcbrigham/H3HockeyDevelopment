@@ -1,24 +1,25 @@
 import "dotenv/config";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import express from "express";
 import cors from "cors";
-import prismaClientPackage from "@prisma/client";
-import { PrismaLibSql } from "@prisma/adapter-libsql";
+import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import nodemailer from "nodemailer";
 
-const { PrismaClient } = prismaClientPackage;
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DB_URL =
-  process.env.DATABASE_URL ??
-  `file:${path.resolve(__dirname, "../prisma/dev.db")}`;
-const adapter = new PrismaLibSql({ url: DB_URL });
+const SUPABASE_URL =
+  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY;
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  throw new Error(
+    "SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured",
+  );
+}
 
 const app = express();
-const prisma = new PrismaClient({ adapter });
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  auth: { autoRefreshToken: false, persistSession: false },
+});
 const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || "h3hockey-secret";
 const EMAIL_FROM = process.env.EMAIL_FROM || process.env.SMTP_USER;
@@ -89,18 +90,21 @@ app.post("/api/mailing-list", async (req, res) => {
     return res.status(400).json({ error: "All fields must be filled" });
   }
   try {
-    const subscriber = await prisma.mailingSubscriber.create({
-      data: {
+    const { data: subscriber, error } = await supabase
+      .from("MailingSubscriber")
+      .insert({
         playerName,
         playerPosition,
         playerBirthYear: parseInt(playerBirthYear),
         mostRecentTeam,
         parentGuardianEmail,
-      },
-    });
+      })
+      .select()
+      .single();
+    if (error) throw error;
     res.status(201).json(subscriber);
   } catch (err) {
-    if (err.code === "P2002") {
+    if (err.code === "23505") {
       return res
         .status(409)
         .json({ error: "This email is already on the mailing list" });
@@ -110,16 +114,22 @@ app.post("/api/mailing-list", async (req, res) => {
 });
 
 app.get("/api/mailing-list", requireAdmin, async (_req, res) => {
-  const subscribers = await prisma.mailingSubscriber.findMany({
-    orderBy: { createdAt: "desc" },
-  });
+  const { data: subscribers, error } = await supabase
+    .from("MailingSubscriber")
+    .select("*")
+    .order("createdAt", { ascending: false });
+  if (error)
+    return res.status(500).json({ error: "Failed to load mailing list" });
   res.json(subscribers);
 });
 
 app.delete("/api/mailing-list/:id", requireAdmin, async (req, res) => {
-  await prisma.mailingSubscriber.delete({
-    where: { id: parseInt(req.params.id) },
-  });
+  const { error } = await supabase
+    .from("MailingSubscriber")
+    .delete()
+    .eq("id", parseInt(req.params.id));
+  if (error)
+    return res.status(500).json({ error: "Failed to remove subscriber" });
   res.json({ success: true });
 });
 
@@ -139,7 +149,11 @@ function requireAdmin(req, res, next) {
 // ── Admin auth ───────────────────────────────────────────────────────────────
 app.post("/api/admin/login", async (req, res) => {
   const { username, password } = req.body;
-  const admin = await prisma.admin.findUnique({ where: { username } });
+  const { data: admin } = await supabase
+    .from("Admin")
+    .select("*")
+    .eq("username", username)
+    .maybeSingle();
   if (!admin || !(await bcrypt.compare(password, admin.password))) {
     return res.status(401).json({ error: "Invalid credentials" });
   }
@@ -161,8 +175,9 @@ app.post("/api/signups/lessons", async (req, res) => {
       .json({ error: "All required fields must be filled" });
   }
   try {
-    const player = await prisma.player.create({
-      data: {
+    const { data: player, error: playerError } = await supabase
+      .from("Player")
+      .insert({
         playerName,
         age: parseInt(age),
         position,
@@ -170,11 +185,18 @@ app.post("/api/signups/lessons", async (req, res) => {
         email,
         phone,
         notes,
-        lessonSignup: { create: { status: "pending" } },
-      },
-      include: { lessonSignup: true },
-    });
-    res.status(201).json(player);
+      })
+      .select()
+      .single();
+    if (playerError) throw playerError;
+    const { data: lessonSignup, error: signupError } = await supabase
+      .from("LessonSignup")
+      .insert({ playerId: player.id, status: "pending" })
+      .select()
+      .single();
+    if (signupError) throw signupError;
+    const result = { ...player, lessonSignup };
+    res.status(201).json(result);
   } catch (err) {
     res
       .status(500)
@@ -183,55 +205,89 @@ app.post("/api/signups/lessons", async (req, res) => {
 });
 
 app.get("/api/signups/lessons", requireAdmin, async (_req, res) => {
-  const signups = await prisma.lessonSignup.findMany({
-    include: { player: true },
-    orderBy: { createdAt: "desc" },
-  });
-  res.json(signups);
+  const { data, error } = await supabase
+    .from("LessonSignup")
+    .select("*, player:Player(*)")
+    .order("createdAt", { ascending: false });
+  if (error)
+    return res.status(500).json({ error: "Failed to load lesson signups" });
+  res.json(data);
 });
 
 app.patch("/api/signups/lessons/:id/status", requireAdmin, async (req, res) => {
   const { status } = req.body;
-  const signup = await prisma.lessonSignup.update({
-    where: { id: parseInt(req.params.id) },
-    data: { status },
-  });
+  const { data: signup, error } = await supabase
+    .from("LessonSignup")
+    .update({ status })
+    .eq("id", parseInt(req.params.id))
+    .select()
+    .single();
+  if (error) return res.status(500).json({ error: "Failed to update signup" });
   res.json(signup);
 });
 
 app.delete("/api/signups/lessons/:id", requireAdmin, async (req, res) => {
-  await prisma.lessonSignup.delete({ where: { id: parseInt(req.params.id) } });
+  const { error } = await supabase
+    .from("LessonSignup")
+    .delete()
+    .eq("id", parseInt(req.params.id));
+  if (error) return res.status(500).json({ error: "Failed to delete signup" });
   res.json({ success: true });
 });
 
 // ── Clinics ──────────────────────────────────────────────────────────────────
+async function getClinicsWithCounts() {
+  const [
+    { data: clinics, error: clinicError },
+    { data: signups, error: signupError },
+  ] = await Promise.all([
+    supabase.from("Clinic").select("*").order("date", { ascending: true }),
+    supabase.from("ClinicSignup").select("clinicId"),
+  ]);
+  if (clinicError) throw clinicError;
+  if (signupError) throw signupError;
+  return clinics.map((clinic) => ({
+    ...clinic,
+    _count: {
+      signups: signups.filter((signup) => signup.clinicId === clinic.id).length,
+    },
+  }));
+}
+
 app.get("/api/clinics", async (_req, res) => {
-  const clinics = await prisma.clinic.findMany({
-    include: { _count: { select: { signups: true } } },
-    orderBy: { date: "asc" },
-  });
-  res.json(clinics);
+  try {
+    res.json(await getClinicsWithCounts());
+  } catch (error) {
+    res.status(500).json({ error: "Failed to load clinics" });
+  }
 });
 
 app.post("/api/clinics", requireAdmin, async (req, res) => {
   const { name, date, time, location, ageGroup, maxPlayers, description } =
     req.body;
-  const clinic = await prisma.clinic.create({
-    data: {
+  const { data: clinic, error } = await supabase
+    .from("Clinic")
+    .insert({
       name,
-      date: new Date(date),
+      date: new Date(date).toISOString(),
       time,
       location,
       ageGroup,
       maxPlayers: parseInt(maxPlayers) || 20,
       description,
-    },
-  });
+    })
+    .select()
+    .single();
+  if (error) return res.status(500).json({ error: "Failed to create clinic" });
   res.status(201).json(clinic);
 });
 
 app.delete("/api/clinics/:id", requireAdmin, async (req, res) => {
-  await prisma.clinic.delete({ where: { id: parseInt(req.params.id) } });
+  const { error } = await supabase
+    .from("Clinic")
+    .delete()
+    .eq("id", parseInt(req.params.id));
+  if (error) return res.status(500).json({ error: "Failed to delete clinic" });
   res.json({ success: true });
 });
 
@@ -261,16 +317,26 @@ app.post("/api/signups/clinics", async (req, res) => {
       .json({ error: "All required fields must be filled" });
   }
   try {
-    const clinic = await prisma.clinic.findUnique({
-      where: { id: parseInt(clinicId) },
-      include: { _count: { select: { signups: true } } },
-    });
+    const [{ data: clinic }, { data: existingSignups, error: countError }] =
+      await Promise.all([
+        supabase
+          .from("Clinic")
+          .select("*")
+          .eq("id", parseInt(clinicId))
+          .maybeSingle(),
+        supabase
+          .from("ClinicSignup")
+          .select("id")
+          .eq("clinicId", parseInt(clinicId)),
+      ]);
+    if (countError) throw countError;
     if (!clinic) return res.status(404).json({ error: "Clinic not found" });
-    if (clinic._count.signups >= clinic.maxPlayers) {
+    if (existingSignups.length >= clinic.maxPlayers) {
       return res.status(400).json({ error: "This clinic is full" });
     }
-    const player = await prisma.player.create({
-      data: {
+    const { data: player, error: playerError } = await supabase
+      .from("Player")
+      .insert({
         playerName,
         age: parseInt(age),
         position,
@@ -278,12 +344,20 @@ app.post("/api/signups/clinics", async (req, res) => {
         email,
         phone,
         notes,
-        clinicSignups: {
-          create: { clinicId: parseInt(clinicId), status: "pending" },
-        },
-      },
-      include: { clinicSignups: true },
-    });
+      })
+      .select()
+      .single();
+    if (playerError) throw playerError;
+    const { data: clinicSignup, error: signupError } = await supabase
+      .from("ClinicSignup")
+      .insert({
+        playerId: player.id,
+        clinicId: parseInt(clinicId),
+        status: "pending",
+      })
+      .select()
+      .single();
+    if (signupError) throw signupError;
     let emailSent = false;
     try {
       emailSent = await sendClinicConfirmation({
@@ -295,7 +369,9 @@ app.post("/api/signups/clinics", async (req, res) => {
     } catch (emailError) {
       console.error("Clinic confirmation email failed:", emailError.message);
     }
-    res.status(201).json({ ...player, emailSent });
+    res
+      .status(201)
+      .json({ ...player, clinicSignups: [clinicSignup], emailSent });
   } catch (err) {
     res
       .status(500)
@@ -304,38 +380,58 @@ app.post("/api/signups/clinics", async (req, res) => {
 });
 
 app.get("/api/signups/clinics", requireAdmin, async (_req, res) => {
-  const signups = await prisma.clinicSignup.findMany({
-    include: { player: true, clinic: true },
-    orderBy: { createdAt: "desc" },
-  });
-  res.json(signups);
+  const { data, error } = await supabase
+    .from("ClinicSignup")
+    .select("*, player:Player(*), clinic:Clinic(*)")
+    .order("createdAt", { ascending: false });
+  if (error)
+    return res.status(500).json({ error: "Failed to load clinic signups" });
+  res.json(data);
 });
 
 app.patch("/api/signups/clinics/:id/status", requireAdmin, async (req, res) => {
   const { status } = req.body;
-  const signup = await prisma.clinicSignup.update({
-    where: { id: parseInt(req.params.id) },
-    data: { status },
-  });
+  const { data: signup, error } = await supabase
+    .from("ClinicSignup")
+    .update({ status })
+    .eq("id", parseInt(req.params.id))
+    .select()
+    .single();
+  if (error) return res.status(500).json({ error: "Failed to update signup" });
   res.json(signup);
 });
 
 app.delete("/api/signups/clinics/:id", requireAdmin, async (req, res) => {
-  await prisma.clinicSignup.delete({ where: { id: parseInt(req.params.id) } });
+  const { error } = await supabase
+    .from("ClinicSignup")
+    .delete()
+    .eq("id", parseInt(req.params.id));
+  if (error) return res.status(500).json({ error: "Failed to delete signup" });
   res.json({ success: true });
 });
 
 // ── Seed admin on startup ────────────────────────────────────────────────────
 async function seedAdmin() {
-  const existing = await prisma.admin.findFirst();
+  const { data: existing } = await supabase
+    .from("Admin")
+    .select("id")
+    .limit(1)
+    .maybeSingle();
   if (!existing) {
     const hash = await bcrypt.hash("h3hockey2024", 10);
-    await prisma.admin.create({ data: { username: "admin", password: hash } });
+    const { error } = await supabase
+      .from("Admin")
+      .insert({ username: "admin", password: hash });
+    if (error) throw error;
     console.log("Admin seeded — username: admin, password: h3hockey2024");
   }
 }
 
-app.listen(PORT, async () => {
-  await seedAdmin();
-  console.log(`H3 Hockey API running on http://localhost:${PORT}`);
-});
+if (process.env.VERCEL !== "1") {
+  app.listen(PORT, async () => {
+    await seedAdmin();
+    console.log(`H3 Hockey API running on http://localhost:${PORT}`);
+  });
+}
+
+export default app;

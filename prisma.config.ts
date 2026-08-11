@@ -1,22 +1,15 @@
-import path from 'node:path'
-import 'dotenv/config'
-import { defineConfig } from 'prisma/config'
-import { PrismaLibSQL } from '@prisma/adapter-libsql'
-import { createClient } from '@libsql/client'
+import "dotenv/config";
+import { defineConfig } from "prisma/config";
 
-const DB_URL = process.env.DATABASE_URL ?? `file:${path.resolve('prisma/dev.db')}`
+const DB_URL = process.env.DATABASE_URL;
+
+if (!DB_URL) {
+  throw new Error("DATABASE_URL must be set to a PostgreSQL connection string");
+}
 
 export default defineConfig({
   earlyAccess: true,
-  schema: 'prisma/schema.prisma',
-  migrations: { path: 'prisma/migrations' },
-  datasource: {
-    url: DB_URL
-  },
-  migrate: {
-    async adapter() {
-      const libsql = createClient({ url: DB_URL })
-      return new PrismaLibSQL(libsql)
-    }
-  }
-})
+  schema: "prisma/schema.prisma",
+  migrations: { path: "prisma/migrations" },
+  datasource: { url: DB_URL },
+});
